@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-context-pipeline
+  labels:
+    app: enterprise-context-pipeline
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: enterprise-context-pipeline
+  template:
+    metadata:
+      labels:
+        app: enterprise-context-pipeline
+    spec:
+      containers:
+        - name: api
+          image: enterprise-context-pipeline:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: REDIS_ENABLED
+              value: "true"
+            - name: REDIS_CLUSTER_ENABLED
+              value: "true"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_TTL
+              value: "300"
+            - name: MAX_CONCURRENT_REQUESTS
+              value: "50"
+            - name: PRIMARY_PROVIDER
+              value: "mock"
+            - name: FALLBACK_PROVIDER
+              value: "mock"
+            - name: PRIMARY_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-provider-credentials
+                  key: primary-api-key
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-context-pipeline
+spec:
+  selector:
+    app: enterprise-context-pipeline
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  type: ClusterIP
